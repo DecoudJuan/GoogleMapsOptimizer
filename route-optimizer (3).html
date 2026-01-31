@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizador de Rutas</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&libraries=places,geometry"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 0;
+            height: calc(100vh - 200px);
+            min-height: 600px;
+        }
+        
+        .sidebar {
+            background: #f8f9fa;
+            padding: 30px;
+            overflow-y: auto;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .map-container {
+            position: relative;
+            background: #e5e5e5;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .input-wrapper {
+            position: relative;
+        }
+        
+        .location-input {
+            width: 100%;
+            padding: 12px 40px 12px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        .location-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .add-btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .add-btn:hover {
+            background: #5568d3;
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        .locations-list {
+            margin-top: 20px;
+        }
+        
+        .location-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        
+        .location-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .location-number {
+            background: #667eea;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .location-number.start {
+            background: #10b981;
+        }
+        
+        .location-text {
+            flex: 1;
+            font-size: 0.95rem;
+            color: #333;
+        }
+        
+        .remove-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+        
+        .remove-btn:hover {
+            background: #dc2626;
+        }
+        
+        .optimize-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        
+        .optimize-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+        
+        .optimize-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .results h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .stat:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .stat-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .clear-btn {
+            width: 100%;
+            background: #f3f4f6;
+            color: #666;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+        
+        .clear-btn:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+        }
+        
+        .route-order {
+            margin-top: 15px;
+        }
+        
+        .route-step {
+            padding: 8px 0;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .route-arrow {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .copy-btn, .export-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .copy-btn {
+            background: #8b5cf6;
+            color: white;
+        }
+        
+        .copy-btn:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+        }
+        
+        .export-btn {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .export-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        .copied-feedback {
+            color: #10b981;
+            font-size: 0.9rem;
+            text-align: center;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+        
+        .share-link-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f9ff;
+            border-radius: 10px;
+            border: 2px dashed #3b82f6;
+        }
+        
+        .share-link-section h4 {
+            color: #1e40af;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .share-link-box {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #bfdbfe;
+            word-break: break-all;
+            font-size: 0.85rem;
+            color: #1e3a8a;
+            margin-bottom: 10px;
+            max-height: 60px;
+            overflow-y: auto;
+        }
+        
+        .copy-link-btn {
+            width: 100%;
+            padding: 10px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .copy-link-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        .pac-container {
+            z-index: 10000;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-top: 4px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        .pac-item {
+            padding: 12px;
+            cursor: pointer;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .pac-item:first-child {
+            border-top: none;
+        }
+        
+        .pac-item:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .pac-icon {
+            display: none;
+        }
+        
+        @media (max-width: 968px) {
+            .content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .map-container {
+                height: 400px;
+            }
+            
+            .sidebar {
+                max-height: none;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function RouteOptimizer() {
+            const [startPoint, setStartPoint] = useState('');
+            const [newLocation, setNewLocation] = useState('');
+            const [locations, setLocations] = useState([]);
+            const [optimizedRoute, setOptimizedRoute] = useState(null);
+            const [totalDistance, setTotalDistance] = useState(0);
+            const [totalDuration, setTotalDuration] = useState(0);
+            const [copied, setCopied] = useState(false);
+            const [linkCopied, setLinkCopied] = useState(false);
+            const [shareableLink, setShareableLink] = useState('');
+            const mapRef = useRef(null);
+            const googleMapRef = useRef(null);
+            const markersRef = useRef([]);
+            const directionsRendererRef = useRef(null);
+            const geocoderRef = useRef(null);
+            const startInputRef = useRef(null);
+            const locationInputRef = useRef(null);
+            const autocompleteStartRef = useRef(null);
+            const autocompleteLocationRef = useRef(null);
+
+            useEffect(() => {
+                // Initialize map
+                googleMapRef.current = new google.maps.Map(mapRef.current, {
+                    center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
+                    zoom: 12,
+                    styles: [
+                        {
+                            featureType: "poi",
+                            elementType: "labels",
+                            stylers: [{ visibility: "off" }]
+                        }
+                    ]
+                });
+
+                directionsRendererRef.current = new google.maps.DirectionsRenderer({
+                    map: googleMapRef.current,
+                    suppressMarkers: false
+                });
+
+                geocoderRef.current = new google.maps.Geocoder();
+
+                // Initialize autocomplete for start point
+                autocompleteStartRef.current = new google.maps.places.Autocomplete(
+                    startInputRef.current,
+                    { types: ['geocode', 'establishment'] }
+                );
+
+                autocompleteStartRef.current.addListener('place_changed', () => {
+                    const place = autocompleteStartRef.current.getPlace();
+                    if (place.formatted_address) {
+                        setStartPoint(place.formatted_address);
+                    }
+                });
+
+                // Initialize autocomplete for new location
+                autocompleteLocationRef.current = new google.maps.places.Autocomplete(
+                    locationInputRef.current,
+                    { types: ['geocode', 'establishment'] }
+                );
+
+                autocompleteLocationRef.current.addListener('place_changed', () => {
+                    const place = autocompleteLocationRef.current.getPlace();
+                    if (place.geometry && place.formatted_address) {
+                        const newLoc = {
+                            address: place.formatted_address,
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng()
+                        };
+                        setLocations(prevLocations => [...prevLocations, newLoc]);
+                        setNewLocation('');
+                        setOptimizedRoute(null);
+                    }
+                });
+            }, []);
+
+            const geocodeAddress = async (address) => {
+                return new Promise((resolve, reject) => {
+                    geocoderRef.current.geocode({ address: address }, (results, status) => {
+                        if (status === 'OK') {
+                            resolve({
+                                address: results[0].formatted_address,
+                                lat: results[0].geometry.location.lat(),
+                                lng: results[0].geometry.location.lng()
+                            });
+                        } else {
+                            reject(new Error('No se pudo encontrar la ubicación'));
+                        }
+                    });
+                });
+            };
+
+            const addLocation = async () => {
+                if (!newLocation.trim()) return;
+                
+                try {
+                    const geocoded = await geocodeAddress(newLocation);
+                    setLocations(prevLocations => [...prevLocations, geocoded]);
+                    setNewLocation('');
+                    setOptimizedRoute(null);
+                } catch (error) {
+                    alert(error.message);
+                }
+            };
+
+            const copyItinerary = () => {
+                if (!optimizedRoute) return;
+                
+                let text = "📍 ITINERARIO OPTIMIZADO\n\n";
+                text += `📊 Distancia total: ${totalDistance} km\n`;
+                text += `⏱️ Tiempo estimado: ${totalDuration} min\n\n`;
+                text += "🗺️ ORDEN DE VISITA:\n\n";
+                
+                optimizedRoute.forEach((loc, index) => {
+                    text += `${index + 1}. ${loc.address}\n`;
+                });
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 3000);
+                }).catch(err => {
+                    alert('Error al copiar al portapapeles');
+                });
+            };
+
+            const exportToGoogleMaps = () => {
+                if (!shareableLink) return;
+                window.open(shareableLink, '_blank');
+            };
+
+            const copyShareLink = () => {
+                if (!shareableLink) return;
+                
+                navigator.clipboard.writeText(shareableLink).then(() => {
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 3000);
+                }).catch(err => {
+                    alert('Error al copiar el link');
+                });
+            };
+
+            const removeLocation = (index) => {
+                setLocations(prevLocations => prevLocations.filter((_, i) => i !== index));
+                setOptimizedRoute(null);
+            };
+
+            const calculateDistance = (point1, point2) => {
+                const lat1 = point1.lat;
+                const lon1 = point1.lng;
+                const lat2 = point2.lat;
+                const lon2 = point2.lng;
+
+                const R = 6371; // Radio de la Tierra en km
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            };
+
+            const optimizeRoute = async () => {
+                if (locations.length < 2) {
+                    alert('Necesitas al menos 2 ubicaciones para optimizar');
+                    return;
+                }
+
+                try {
+                    let startLoc;
+                    if (startPoint.trim()) {
+                        startLoc = await geocodeAddress(startPoint);
+                    } else {
+                        startLoc = locations[0];
+                    }
+
+                    // Nearest neighbor algorithm for TSP
+                    const unvisited = [...locations];
+                    const route = [startLoc];
+                    let current = startLoc;
+
+                    // Remove start location if it's in the list
+                    const startIndex = unvisited.findIndex(loc => 
+                        loc.lat === startLoc.lat && loc.lng === startLoc.lng
+                    );
+                    if (startIndex !== -1) {
+                        unvisited.splice(startIndex, 1);
+                    }
+
+                    while (unvisited.length > 0) {
+                        let nearest = null;
+                        let minDist = Infinity;
+                        let nearestIndex = -1;
+
+                        unvisited.forEach((loc, index) => {
+                            const dist = calculateDistance(current, loc);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                nearest = loc;
+                                nearestIndex = index;
+                            }
+                        });
+
+                        route.push(nearest);
+                        current = nearest;
+                        unvisited.splice(nearestIndex, 1);
+                    }
+
+                    // Calculate route with Google Directions
+                    const waypoints = route.slice(1, -1).map(loc => ({
+                        location: new google.maps.LatLng(loc.lat, loc.lng),
+                        stopover: true
+                    }));
+
+                    const directionsService = new google.maps.DirectionsService();
+                    const request = {
+                        origin: new google.maps.LatLng(route[0].lat, route[0].lng),
+                        destination: new google.maps.LatLng(route[route.length - 1].lat, route[route.length - 1].lng),
+                        waypoints: waypoints,
+                        travelMode: google.maps.TravelMode.DRIVING,
+                        optimizeWaypoints: false
+                    };
+
+                    directionsService.route(request, (result, status) => {
+                        if (status === 'OK') {
+                            directionsRendererRef.current.setDirections(result);
+                            
+                            let totalDist = 0;
+                            let totalTime = 0;
+                            
+                            result.routes[0].legs.forEach(leg => {
+                                totalDist += leg.distance.value;
+                                totalTime += leg.duration.value;
+                            });
+
+                            setTotalDistance((totalDist / 1000).toFixed(2));
+                            setTotalDuration(Math.round(totalTime / 60));
+                            setOptimizedRoute(route);
+                            
+                            // Generate shareable link
+                            const origin = encodeURIComponent(route[0].address);
+                            const destination = encodeURIComponent(route[route.length - 1].address);
+                            
+                            let waypointsParam = '';
+                            if (route.length > 2) {
+                                const waypoints = route.slice(1, -1)
+                                    .map(loc => encodeURIComponent(loc.address))
+                                    .join('|');
+                                waypointsParam = `&waypoints=${waypoints}`;
+                            }
+                            
+                            const link = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointsParam}&travelmode=driving`;
+                            setShareableLink(link);
+                        } else {
+                            alert('Error al calcular la ruta óptima');
+                        }
+                    });
+
+                } catch (error) {
+                    alert(error.message);
+                }
+            };
+
+            const clearAll = () => {
+                setLocations([]);
+                setStartPoint('');
+                setNewLocation('');
+                setOptimizedRoute(null);
+                setTotalDistance(0);
+                setTotalDuration(0);
+                directionsRendererRef.current.setDirections({ routes: [] });
+            };
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>🗺️ Optimizador de Rutas</h1>
+                        <p>Encuentra el mejor recorrido para tus destinos</p>
+                    </div>
+                    
+                    <div className="content">
+                        <div className="sidebar">
+                            <div className="input-group">
+                                <label>📍 Punto de inicio (opcional)</label>
+                                <input
+                                    ref={startInputRef}
+                                    type="text"
+                                    className="location-input"
+                                    placeholder="Ej: Av. Corrientes 1234, CABA"
+                                    value={startPoint}
+                                    onChange={(e) => setStartPoint(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="input-group">
+                                <label>📌 Agregar ubicación</label>
+                                <div className="input-wrapper">
+                                    <input
+                                        ref={locationInputRef}
+                                        type="text"
+                                        className="location-input"
+                                        placeholder="Ej: Obelisco, Buenos Aires"
+                                        value={newLocation}
+                                        onChange={(e) => setNewLocation(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && addLocation()}
+                                    />
+                                    <button className="add-btn" onClick={addLocation}>+</button>
+                                </div>
+                            </div>
+
+                            {locations.length > 0 && (
+                                <div className="locations-list">
+                                    <label style={{marginBottom: '12px', display: 'block'}}>
+                                        Ubicaciones agregadas ({locations.length})
+                                    </label>
+                                    {locations.map((loc, index) => (
+                                        <div key={index} className="location-item">
+                                            <div className="location-number">{index + 1}</div>
+                                            <div className="location-text">{loc.address}</div>
+                                            <button 
+                                                className="remove-btn"
+                                                onClick={() => removeLocation(index)}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <button 
+                                className="optimize-btn"
+                                onClick={optimizeRoute}
+                                disabled={locations.length < 2}
+                            >
+                                🚀 Optimizar Ruta
+                            </button>
+
+                            {locations.length > 0 && (
+                                <button className="clear-btn" onClick={clearAll}>
+                                    🗑️ Limpiar todo
+                                </button>
+                            )}
+
+                            {optimizedRoute && (
+                                <div className="results">
+                                    <h3>📊 Resultados</h3>
+                                    <div className="stat">
+                                        <span className="stat-label">Distancia total:</span>
+                                        <span className="stat-value">{totalDistance} km</span>
+                                    </div>
+                                    <div className="stat">
+                                        <span className="stat-label">Tiempo estimado:</span>
+                                        <span className="stat-value">{totalDuration} min</span>
+                                    </div>
+                                    <div className="stat">
+                                        <span className="stat-label">Paradas:</span>
+                                        <span className="stat-value">{optimizedRoute.length}</span>
+                                    </div>
+
+                                    <div className="route-order">
+                                        <label style={{marginBottom: '8px', display: 'block', fontWeight: 600}}>
+                                            Orden óptimo:
+                                        </label>
+                                        {optimizedRoute.map((loc, index) => (
+                                            <div key={index} className="route-step">
+                                                <span style={{fontWeight: 'bold', color: index === 0 ? '#10b981' : '#667eea'}}>
+                                                    {index + 1}.
+                                                </span>
+                                                <span>{loc.address}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="action-buttons">
+                                        <button className="copy-btn" onClick={copyItinerary}>
+                                            📋 Copiar
+                                        </button>
+                                        <button className="export-btn" onClick={exportToGoogleMaps}>
+                                            🗺️ Abrir en Maps
+                                        </button>
+                                    </div>
+                                    
+                                    {copied && (
+                                        <div className="copied-feedback">
+                                            ✓ Itinerario copiado al portapapeles
+                                        </div>
+                                    )}
+                                    
+                                    {shareableLink && (
+                                        <div className="share-link-section">
+                                            <h4>🔗 Link para compartir</h4>
+                                            <div className="share-link-box">
+                                                {shareableLink}
+                                            </div>
+                                            <button className="copy-link-btn" onClick={copyShareLink}>
+                                                {linkCopied ? '✓ Link copiado' : '📎 Copiar link'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="map-container">
+                            <div id="map" ref={mapRef}></div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<RouteOptimizer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
